@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const ytdl = require('ytdl-core');
+const ytdl = require('@distube/ytdl-core');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,7 +12,7 @@ app.get('/', (req, res) => {
     res.json({
         status: true,
         creator: "Bagga Sher MD",
-        message: "API is working"
+        message: "API is working smoothly"
     });
 });
 
@@ -20,10 +20,17 @@ app.get('/download', async (req, res) => {
     try {
         const videoURL = req.query.url;
         if (!videoURL || !ytdl.validateURL(videoURL)) {
-            return res.status(400).json({ error: "Invalid YouTube URL" });
+            return res.status(400).json({ status: false, error: "Invalid YouTube URL" });
         }
 
-        const info = await ytdl.getInfo(videoURL);
+        const info = await ytdl.getInfo(videoURL, {
+            requestOptions: {
+                headers: {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                }
+            }
+        });
+
         const formats = ytdl.filterFormats(info.formats, 'audioandvideo');
         const audioFormats = ytdl.filterFormats(info.formats, 'audioonly');
 
