@@ -1,40 +1,59 @@
-const express = require('express');
-const cors = require('cors');
+const { default: makeWASocket, useMultiFileAuthState } = require("@whiskeysockets/baileys");
+const pino = require("pino");
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json());
-
-app.get('/', (req, res) => {
-    res.json({
-        status: true,
-        creator: "Bagga Sher MD",
-        message: "API is working smoothly"
+async function startClinicBot() {
+    const { state, saveCreds } = await useMultiFileAuthState("auth_info");
+    
+    const sock = makeWASocket({
+        logger: pino({ level: "silent" }),
+        auth: state
     });
-});
 
-app.get('/download', async (req, res) => {
-    try {
-        const videoURL = req.query.url;
-        if (!videoURL) {
-            return res.status(400).json({ status: false, error: "URL is required" });
+    sock.ev.on("creds.update", saveCreds);
+
+    sock.ev.on("connection.update", (update) => {
+        const { connection } = update;
+        if (connection === "open") {
+            console.log("Shawaan Clinic Bot successfully connected to WhatsApp!");
         }
+    });
 
-        // Bridge method: Direct working links redirect kar reha hai taan jo server crash na hove
-        res.json({
-            status: true,
-            download: {
-                audio: `https://api.giftedtech.web.id/api/download/ytmp3?url=${encodeURIComponent(videoURL)}&apikey=gifted`,
-                video: `https://api.giftedtech.web.id/api/download/ytmp4?url=${encodeURIComponent(videoURL)}&apikey=gifted`
-            }
-        });
-    } catch (error) {
-        res.status(500).json({ status: false, error: error.message });
-    }
-});
+    sock.ev.on("messages.upsert", async ({ messages }) => {
+        const m = messages[0];
+        if (!m.message || m.key.fromMe) return;
 
-app.listen(PORT, () => {
-    console.log("Server running on port " + PORT);
-});
+        const messageType = Object.keys(m.message)[0];
+        const body = messageType === "conversation" 
+            ? m.message.conversation 
+            : messageType === "extendedTextMessage" 
+            ? m.message.extendedTextMessage.text 
+            : "";
+
+        const sender = m.key.remoteJid;
+        const text = body.toLowerCase().trim();
+
+        if (text === ".doctor" || text === ".info") {
+            const clinicInfo = `
+SHAWAAN TREATMENT CLINIC
+
+Doctor Name: Dr. Muhammad Irfan
+Specialization: Gurday ki Pathri Aur Masane ki Pathri ka Shawaan ke Zariye Ilaj
+Details: Bina Operation Pathri ka Asan aur Asardaar Ilaj
+Address: Sahiwal
+
+Type .appointment to book your slot.
+            `;
+            await sock.sendMessage(sender, { text: clinicInfo }, { quoted: m });
+        }
+        else if (text === ".appointment") {
+            const appointmentMsg = `
+APPOINTMENT BOOKING
+
+Please send your name and details to book your appointment slot with Dr. Muhammad Irfan. Clinic staff will contact you soon.
+            `;
+            await sock.sendMessage(sender, { text: appointmentMsg }, { quoted: m });
+        }
+    });
+}
+
+startClinicBot();
